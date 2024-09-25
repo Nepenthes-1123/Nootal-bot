@@ -1,10 +1,11 @@
 import discord
 import os
-from discord import ButtonStyle, Client, Intents, Interaction, SelectOption
+from discord import ButtonStyle, Client, Intents, Interaction, SelectOption, TextStyle
 from discord.app_commands import CommandTree
-from discord.ui import Button, Select, View
+from discord.ui import Button, Select, View, Modal, TextInput
 
 from os.path import join, dirname
+from discord.utils import MISSING
 from dotenv import load_dotenv
 
 from players import Participant
@@ -53,6 +54,44 @@ class SelectTeatNum(View):
         await interaction.response.edit_message(view=self)
         await interaction.followup.send("チーム数: " + select.values[0])
 
+class GetPower(Modal):
+    def __init__(self, title: str) -> None:
+        super().__init__(title=title)
+
+        self.zones = TextInput(
+            label="ガチエリア",
+            style=TextStyle.short,
+            placeholder="2000",
+            required=True
+        )
+        self.add_item(self.zones)
+        self.tower = TextInput(
+            label="ガチヤグラ",
+            style=TextStyle.short,
+            placeholder="2000",
+            required=True
+        )
+        self.add_item(self.tower)
+        self.rainmaker = TextInput(
+            label="ガチホコ",
+            style=TextStyle.short,
+            placeholder="2000",
+            required=True
+        )
+        self.add_item(self.rainmaker)
+        self.clam = TextInput(
+            label="ガチアサリ",
+            style=TextStyle.short,
+            placeholder="2000",
+            required=True
+        )
+        self.add_item(self.clam)
+
+    async def on_submit(self, interaction: Interaction) -> None:
+        await interaction.response.send_message("入力ありがとうございました。", ephemeral=True)
+
+    async def on_error(self) -> None:
+        print("errorった")
 
 class CapButton(Button):
     def __init__(
@@ -82,16 +121,29 @@ class CapButton(Button):
 
     async def callback(self, interaction: Interaction) -> None:
         if not name_dict[interaction.user.id] in [p.name for p in self.player_list]:
+            modal = GetPower("各ルールのXPを入力してください。")
+            try:
+                await interaction.response.send_modal(modal)
+            except Exception as e:
+                print(e)
+            try:
+                await client.wait_for("message", check=modal.is_finished())
+            except Exception as e:
+                print("CapButton: ", e)
+            await interaction.followup.edit_message(
+                message_id=interaction.message.id ,content="現在参加人数: " + str(len(self.player_list)),
+            )
+            await interaction.followup.send("主将を選択しました。", ephemeral=True)
             self.player_list.append(
                 Participant(
                     name=name_dict[interaction.user.id],
                     captain=True,
+                    zones_pw=modal.zones.value,
+                    tower_pw=modal.tower.value,
+                    rainmaker_pw=modal.rainmaker.value,
+                    clam_pw=modal.clam.value,
                 )
             )
-            await interaction.response.edit_message(
-                content="現在参加人数: " + str(len(self.player_list)),
-            )
-            await interaction.followup.send("主将を選択しました。", ephemeral=True)
         else:
             await interaction.response.edit_message(
                 content="現在参加人数: " + str(len(self.player_list)),
@@ -127,13 +179,26 @@ class PrtcButton(Button):
 
     async def callback(self, interaction: Interaction) -> None:
         if not name_dict[interaction.user.id] in [p.name for p in self.player_list]:
-            self.player_list.append(
-                Participant(name=name_dict[interaction.user.id], captain=False)
-            )
-            await interaction.response.edit_message(
-                content="現在参加人数: " + str(len(self.player_list)),
+            modal = GetPower("各ルールのXPを入力してください。")
+            await interaction.response.send_modal(modal)
+            try:
+                await client.wait_for("message", check=modal.is_finished())
+            except Exception as e:
+                print("PrtcButton: ", e)
+            await interaction.followup.edit_message(
+                message_id=interaction.message.id, content="現在参加人数: " + str(len(self.player_list)),
             )
             await interaction.followup.send("参加者を選択しました。", ephemeral=True)
+            self.player_list.append(
+                Participant(
+                    name=name_dict[interaction.user.id],
+                    captain=False,
+                    zones_pw=modal.zones.value,
+                    tower_pw=modal.tower.value,
+                    rainmaker_pw=modal.rainmaker.value,
+                    clam_pw=modal.clam.value,
+                )
+            )
         else:
             await interaction.response.edit_message(
                 content="現在参加人数: " + str(len(self.player_list)),
@@ -176,6 +241,8 @@ async def draft(interaction: Interaction) -> None:
         await client.wait_for("message", check=check_participant_num)
     except Exception as e:
         print("participant_num", e)
+
+
 
     # await interaction.followup.send()
 
