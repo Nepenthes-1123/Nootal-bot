@@ -1,13 +1,18 @@
 import discord
+import os
 from discord import ButtonStyle, Client, Intents, Interaction, SelectOption
 from discord.app_commands import CommandTree
 from discord.ui import Button, Select, View
 
+from os.path import join, dirname
+from dotenv import load_dotenv
+
 from players import Participant
 from teams import Team
 
-name_dict: dict[str, str] = {}
+load_dotenv()
 
+name_dict: dict[str, str] = {}
 
 class MyClient(Client):
     def __init__(self, intents: Intents) -> None:
@@ -175,4 +180,4 @@ async def draft(interaction: Interaction) -> None:
     # await interaction.followup.send()
 
 
-client.run("Input your token")
+client.run(os.environ.get("discord_TOKEN"))
