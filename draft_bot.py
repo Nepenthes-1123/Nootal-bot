@@ -6,6 +6,7 @@ from discord.app_commands import CommandTree
 from discord.ui import Button, Modal, Select, TextInput, View
 from dotenv import load_dotenv
 
+import funcs
 from players import Participant
 from teams import Team
 
@@ -232,7 +233,7 @@ async def draft(interaction: Interaction) -> None:
     )
 
     def check_participant_num(a: Interaction) -> bool:
-        return len(players) >= 1
+        return len(players) >= PLAYER_LIM
 
     try:
         await client.wait_for("message", check=check_participant_num)
@@ -249,11 +250,13 @@ async def draft(interaction: Interaction) -> None:
     )
 
     # 主将決定処理
+    cap_list: list[Participant] = funcs.dec_cap(player_list=players, TEAM_NUM=TEAM_NUM)
 
     # 主将登録処理（仮）
-    teams = [Team(players[0])] * TEAM_NUM
+    teams = [Team(cap_list[i].name) for i in range(TEAM_NUM)]
 
     # チーム分け処理
+    teams = funcs.dec_team_rand(player_list=players, teams=teams)
 
     # 編成表示処理
     markdown = "# チーム分け\n"
