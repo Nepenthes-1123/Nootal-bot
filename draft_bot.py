@@ -1,10 +1,10 @@
-import discord
 import os
+from os.path import dirname, join
+
+import discord
 from discord import ButtonStyle, Client, Intents, Interaction, SelectOption, TextStyle
 from discord.app_commands import CommandTree
-from discord.ui import Button, Select, View, Modal, TextInput
-
-from os.path import join, dirname
+from discord.ui import Button, Modal, Select, TextInput, View
 from discord.utils import MISSING
 from dotenv import load_dotenv
 
@@ -14,6 +14,7 @@ from teams import Team
 load_dotenv()
 
 name_dict: dict[str, str] = {}
+
 
 class MyClient(Client):
     def __init__(self, intents: Intents) -> None:
@@ -54,44 +55,36 @@ class SelectTeatNum(View):
         await interaction.response.edit_message(view=self)
         await interaction.followup.send("チーム数: " + select.values[0])
 
+
 class GetPower(Modal):
     def __init__(self, title: str) -> None:
         super().__init__(title=title)
 
         self.zones = TextInput(
-            label="ガチエリア",
-            style=TextStyle.short,
-            placeholder="2000",
-            required=True
+            label="ガチエリア", style=TextStyle.short, placeholder="2000", required=True
         )
         self.add_item(self.zones)
         self.tower = TextInput(
-            label="ガチヤグラ",
-            style=TextStyle.short,
-            placeholder="2000",
-            required=True
+            label="ガチヤグラ", style=TextStyle.short, placeholder="2000", required=True
         )
         self.add_item(self.tower)
         self.rainmaker = TextInput(
-            label="ガチホコ",
-            style=TextStyle.short,
-            placeholder="2000",
-            required=True
+            label="ガチホコ", style=TextStyle.short, placeholder="2000", required=True
         )
         self.add_item(self.rainmaker)
         self.clam = TextInput(
-            label="ガチアサリ",
-            style=TextStyle.short,
-            placeholder="2000",
-            required=True
+            label="ガチアサリ", style=TextStyle.short, placeholder="2000", required=True
         )
         self.add_item(self.clam)
 
     async def on_submit(self, interaction: Interaction) -> None:
-        await interaction.response.send_message("入力ありがとうございました。", ephemeral=True)
+        await interaction.response.send_message(
+            "入力ありがとうございました。", ephemeral=True
+        )
 
     async def on_error(self) -> None:
         print("errorった")
+
 
 class CapButton(Button):
     def __init__(
@@ -131,7 +124,8 @@ class CapButton(Button):
             except Exception as e:
                 print("CapButton: ", e)
             await interaction.followup.edit_message(
-                message_id=interaction.message.id ,content="現在参加人数: " + str(len(self.player_list)),
+                message_id=interaction.message.id,
+                content="現在参加人数: " + str(len(self.player_list)),
             )
             await interaction.followup.send("主将を選択しました。", ephemeral=True)
             self.player_list.append(
@@ -186,7 +180,8 @@ class PrtcButton(Button):
             except Exception as e:
                 print("PrtcButton: ", e)
             await interaction.followup.edit_message(
-                message_id=interaction.message.id, content="現在参加人数: " + str(len(self.player_list)),
+                message_id=interaction.message.id,
+                content="現在参加人数: " + str(len(self.player_list)),
             )
             await interaction.followup.send("参加者を選択しました。", ephemeral=True)
             self.player_list.append(
@@ -241,8 +236,6 @@ async def draft(interaction: Interaction) -> None:
         await client.wait_for("message", check=check_participant_num)
     except Exception as e:
         print("participant_num", e)
-
-
 
     # await interaction.followup.send()
 
