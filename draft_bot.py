@@ -55,8 +55,10 @@ class SelectTeatNum(View):
 
 
 class GetPower(Modal):
-    def __init__(self, title: str) -> None:
-        super().__init__(title=title)
+    def __init__(self, title: str, players: list[Participant], cap: bool) -> None:
+        super().__init__(title=title, timeout=None)
+        self.player_list = players
+        self.cap = cap
 
         self.zones = TextInput(
             label="ガチエリア", style=TextStyle.short, placeholder="2000", required=True
@@ -76,11 +78,33 @@ class GetPower(Modal):
         self.add_item(self.clam)
 
     async def on_submit(self, interaction: Interaction) -> None:
-        await interaction.response.send_message(
-            "入力ありがとうございました。", ephemeral=True
-        )
 
-    async def on_error(self) -> None:
+        if (
+            self.zones.value != ""
+            and self.tower.value != ""
+            and self.rainmaker.value != ""
+            and self.clam.value != ""
+        ):
+            self.player_list.append(
+                Participant(
+                    name=name_dict[interaction.user.id],
+                    captain=self.cap,
+                    zones_pw=float(self.zones.value),
+                    tower_pw=float(self.tower.value),
+                    rainmaker_pw=float(self.rainmaker.value),
+                    clam_pw=float(self.clam.value),
+                )
+            )
+
+            await interaction.response.send_message(
+                "入力ありがとうございました。", ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                "値が取得できませんでした。", ephemeral=True
+            )
+
+    async def on_error(self, interaction: Interaction, error: Exception) -> None:
         print("errorった")
 
 
@@ -112,19 +136,12 @@ class CapButton(Button):
 
     async def callback(self, interaction: Interaction) -> None:
         if not name_dict[interaction.user.id] in [p.name for p in self.player_list]:
-            modal = GetPower("各ルールのXPを入力してください。")
+            modal = GetPower("各ルールのXPを入力してください。", self.player_list, True)
             await interaction.response.send_modal(modal)
 
-            self.player_list.append(
-                Participant(
-                    name=name_dict[interaction.user.id],
-                    captain=True,
-                    zones_pw=modal.zones.value,
-                    tower_pw=modal.tower.value,
-                    rainmaker_pw=modal.rainmaker.value,
-                    clam_pw=modal.clam.value,
-                )
-            )
+            while modal.is_finished():
+                pass
+
             await interaction.followup.edit_message(
                 message_id=interaction.message.id,
                 content="現在参加人数: " + str(len(self.player_list)),
@@ -165,19 +182,14 @@ class PrtcButton(Button):
 
     async def callback(self, interaction: Interaction) -> None:
         if not name_dict[interaction.user.id] in [p.name for p in self.player_list]:
-            modal = GetPower("各ルールのXPを入力してください。")
+            modal = GetPower(
+                "各ルールのXPを入力してください。", self.player_list, False
+            )
             await interaction.response.send_modal(modal)
 
-            self.player_list.append(
-                Participant(
-                    name=name_dict[interaction.user.id],
-                    captain=False,
-                    zones_pw=modal.zones.value,
-                    tower_pw=modal.tower.value,
-                    rainmaker_pw=modal.rainmaker.value,
-                    clam_pw=modal.clam.value,
-                )
-            )
+            while modal.is_finished():
+                pass
+
             await interaction.followup.edit_message(
                 message_id=interaction.message.id,
                 content="現在参加人数: " + str(len(self.player_list)),
@@ -207,7 +219,6 @@ async def draft(interaction: Interaction) -> None:
 
     TEAM_NUM = view_select.values
     PLAYER_LIM = TEAM_NUM * 4
-    teams = [Team] * TEAM_NUM
     players: list[Participant] = []
 
     view_button = View()
@@ -221,7 +232,7 @@ async def draft(interaction: Interaction) -> None:
     )
 
     def check_participant_num(a: Interaction) -> bool:
-        return len(players) >= PLAYER_LIM
+        return len(players) >= 1
 
     try:
         await client.wait_for("message", check=check_participant_num)
@@ -237,9 +248,23 @@ async def draft(interaction: Interaction) -> None:
         message.id, content="規定人数に到達したため締め切ります。", view=view_button
     )
 
-    # await interaction.followup.send(
-    #     content="markdown test\n- チーム1\n  - メンバー1\n  - メンバー2"
-    # )
+    # 主将決定処理
+
+    # 主将登録処理（仮）
+    teams = [Team(players[0])] * TEAM_NUM
+
+    # チーム分け処理
+
+    # 編成表示処理
+    markdown = "# チーム分け\n"
+    i = 1
+    for team in teams:
+        markdown += "- チーム" + str(i) + "\n"
+        i += 1
+        for player in team.show_member():
+            markdown += "  - " + player + "\n"
+
+    await interaction.followup.send(content=markdown)
 
 
 client.run(os.environ.get("discord_TOKEN"))
