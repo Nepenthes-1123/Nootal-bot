@@ -1,11 +1,9 @@
 import os
-from os.path import dirname, join
 
 import discord
 from discord import ButtonStyle, Client, Intents, Interaction, SelectOption, TextStyle
 from discord.app_commands import CommandTree
 from discord.ui import Button, Modal, Select, TextInput, View
-from discord.utils import MISSING
 from dotenv import load_dotenv
 
 from players import Participant
@@ -115,19 +113,8 @@ class CapButton(Button):
     async def callback(self, interaction: Interaction) -> None:
         if not name_dict[interaction.user.id] in [p.name for p in self.player_list]:
             modal = GetPower("各ルールのXPを入力してください。")
-            try:
-                await interaction.response.send_modal(modal)
-            except Exception as e:
-                print(e)
-            try:
-                await client.wait_for("message", check=modal.is_finished())
-            except Exception as e:
-                print("CapButton: ", e)
-            await interaction.followup.edit_message(
-                message_id=interaction.message.id,
-                content="現在参加人数: " + str(len(self.player_list)),
-            )
-            await interaction.followup.send("主将を選択しました。", ephemeral=True)
+            await interaction.response.send_modal(modal)
+
             self.player_list.append(
                 Participant(
                     name=name_dict[interaction.user.id],
@@ -138,6 +125,11 @@ class CapButton(Button):
                     clam_pw=modal.clam.value,
                 )
             )
+            await interaction.followup.edit_message(
+                message_id=interaction.message.id,
+                content="現在参加人数: " + str(len(self.player_list)),
+            )
+            await interaction.followup.send("主将を選択しました。", ephemeral=True)
         else:
             await interaction.response.edit_message(
                 content="現在参加人数: " + str(len(self.player_list)),
@@ -175,15 +167,7 @@ class PrtcButton(Button):
         if not name_dict[interaction.user.id] in [p.name for p in self.player_list]:
             modal = GetPower("各ルールのXPを入力してください。")
             await interaction.response.send_modal(modal)
-            try:
-                await client.wait_for("message", check=modal.is_finished())
-            except Exception as e:
-                print("PrtcButton: ", e)
-            await interaction.followup.edit_message(
-                message_id=interaction.message.id,
-                content="現在参加人数: " + str(len(self.player_list)),
-            )
-            await interaction.followup.send("参加者を選択しました。", ephemeral=True)
+
             self.player_list.append(
                 Participant(
                     name=name_dict[interaction.user.id],
@@ -194,6 +178,11 @@ class PrtcButton(Button):
                     clam_pw=modal.clam.value,
                 )
             )
+            await interaction.followup.edit_message(
+                message_id=interaction.message.id,
+                content="現在参加人数: " + str(len(self.player_list)),
+            )
+            await interaction.followup.send("参加者を選択しました。", ephemeral=True)
         else:
             await interaction.response.edit_message(
                 content="現在参加人数: " + str(len(self.player_list)),
@@ -222,11 +211,13 @@ async def draft(interaction: Interaction) -> None:
     players: list[Participant] = []
 
     view_button = View()
-    view_button.add_item(CapButton(players, style=ButtonStyle.primary))
-    view_button.add_item(PrtcButton(players, style=ButtonStyle.grey))
+    cb = CapButton(players, style=ButtonStyle.primary)
+    pb = PrtcButton(players, style=ButtonStyle.grey)
+    view_button.add_item(cb)
+    view_button.add_item(pb)
 
-    await interaction.followup.send(
-        "現在参加人数: " + str(len(players)), view=view_button
+    message = await interaction.followup.send(
+        "現在参加人数: " + str(len(players)), view=view_button, wait=True
     )
 
     def check_participant_num(a: Interaction) -> bool:
@@ -237,7 +228,18 @@ async def draft(interaction: Interaction) -> None:
     except Exception as e:
         print("participant_num", e)
 
-    # await interaction.followup.send()
+    cb.disabled = True
+    pb.disabled = True
+    view_button = view_button.clear_items()
+    view_button.add_item(cb)
+    view_button.add_item(pb)
+    await interaction.followup.edit_message(
+        message.id, content="規定人数に到達したため締め切ります。", view=view_button
+    )
+
+    # await interaction.followup.send(
+    #     content="markdown test\n- チーム1\n  - メンバー1\n  - メンバー2"
+    # )
 
 
 client.run(os.environ.get("discord_TOKEN"))
