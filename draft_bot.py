@@ -1,4 +1,6 @@
+import collections
 import os
+import random
 
 import discord
 from discord import ButtonStyle, Client, Intents, Interaction, SelectOption, TextStyle
@@ -88,7 +90,7 @@ class GetPower(Modal):
         ):
             self.player_list.append(
                 Participant(
-                    name=name_dict[interaction.user.id],
+                    name=interaction.user.id,
                     captain=self.cap,
                     zones_pw=float(self.zones.value),
                     tower_pw=float(self.tower.value),
@@ -136,7 +138,7 @@ class CapButton(Button):
         self.player_list = player
 
     async def callback(self, interaction: Interaction) -> None:
-        if not name_dict[interaction.user.id] in [p.name for p in self.player_list]:
+        if interaction.user.id not in [p.name for p in self.player_list]:
             modal = GetPower("各ルールのXPを入力してください。", self.player_list, True)
             await interaction.response.send_modal(modal)
 
@@ -182,7 +184,7 @@ class PrtcButton(Button):
         self.player_list = player
 
     async def callback(self, interaction: Interaction) -> None:
-        if not name_dict[interaction.user.id] in [p.name for p in self.player_list]:
+        if interaction.user.id not in [p.name for p in self.player_list]:
             modal = GetPower(
                 "各ルールのXPを入力してください。", self.player_list, False
             )
@@ -203,11 +205,39 @@ class PrtcButton(Button):
             await interaction.followup.send("すでに参加しています。", ephemeral=True)
 
 
+class SelectTeatMem(View):
+    def __init__(
+        self,
+        *,
+        cap_list: list[Participant],
+        player_list: list[Participant],
+        timeout: float | None = 180,
+    ):
+        super().__init__(timeout=timeout)
+        self.cap_list = [cap.name for cap in cap_list]
+        self.cap_selected: dict[str, str] = {}
+        for cap in self.cap_list:
+            self.cap_selected[cap] = ""
+        self.player_list = player_list
+
+    @discord.ui.select(
+        cls=Select,
+        placeholder="ドラフトするメンバーを選んでください。",
+    )
+    async def selectMenu(self, interaction: Interaction, select: Select) -> None:
+        if (
+            interaction.user.id in self.cap_list
+            and self.cap_selected[interaction.user.id] == ""
+        ):
+            self.cap_selected[interaction.user.id] = select.values
+            await interaction.followup.send("チーム数: " + select.values[0])
+
+
 @client.tree.command()
 async def draft(interaction: Interaction) -> None:
 
+    # チーム数取得処理
     view_select = SelectTeatNum()
-
     await interaction.response.send_message(view=view_select, ephemeral=True)
 
     def check_select(a: Select) -> bool:
@@ -218,6 +248,7 @@ async def draft(interaction: Interaction) -> None:
     except Exception as e:
         print("select", e)
 
+    # 参加者募集処理
     TEAM_NUM = view_select.values
     PLAYER_LIM = TEAM_NUM * 4
     players: list[Participant] = []
@@ -227,7 +258,6 @@ async def draft(interaction: Interaction) -> None:
     pb = PrtcButton(players, style=ButtonStyle.grey)
     view_button.add_item(cb)
     view_button.add_item(pb)
-
     message = await interaction.followup.send(
         "現在参加人数: " + str(len(players)), view=view_button, wait=True
     )
@@ -255,8 +285,120 @@ async def draft(interaction: Interaction) -> None:
     # 主将登録処理（仮）
     teams = [Team(cap_list[i].name) for i in range(TEAM_NUM)]
 
+    # 全参加者表示処理（主将と参加者に分けて表示）
+    markdown = "# ドラフト参加者\n- 主将\n"
+    for cap in cap_list:
+        member = interaction.guild.get_member(int(cap))
+        markdown += "  - " + member + "\n"
+    markdown += "- 参加者\n"
+    for player in players:
+        member = interaction.guild.get_member(int(player))
+        markdown += "  - " + member + "\n"
+    await interaction.followup.send(content=markdown)
+
     # チーム分け処理
-    teams = funcs.dec_team_rand(player_list=players, teams=teams)
+    # ドロップダウンを3回投げて、主将以外の人の入力をIFで無効化する
+    for i in range(3):
+        view_select = SelectTeatMem(cap_list=cap_list, player_list=players)
+        [
+            view_select.selectMenu.add_option(
+                label=name_dict[player.name],
+                value=player.name,
+                description="最高XP: " + str(player.max_power()),
+            )
+            for player in players
+        ]
+
+        await interaction.followup.send(str(i + 1) + "週目指名", view=view_select)
+
+        def check_select_mem(a: Select) -> bool:
+            return all(list(view_select.cap_selected.values()))
+
+        try:
+            await client.wait_for("message", check=check_select_mem)
+        except Exception as e:
+            print("select", e)
+
+        # 重複時処理
+        dpl_mens = [
+            k
+            for k, v in collections.Counter(
+                list(view_select.cap_selected.values())
+            ).items()
+            if v > 1
+        ]
+        dpl_cap: dict[str, list[str]] = {}
+        for d_m in dpl_mens:
+            dpl_cap[d_m] = []
+        for k, v in view_select.cap_selected.items():
+            if v in dpl_mens:
+                dpl_cap[v].append(k)
+
+        # 確定プレイヤーをチーム振り分け
+        for team in teams:
+            player = view_select.cap_selected[team.captain]
+            players = [p for p in players if p.name != player]
+            if player not in dpl_mens:
+                team.add_player(player)
+
+        # Todo
+        # duplication_menberが空になるまでドラフトに負けている主将にドラフト
+        # を要請するドロップダウンメニューを送り続けるwhile文を書く
+        while dpl_mens:
+            for dpl_men in dpl_mens:
+                cap_l = dpl_cap[dpl_men]
+                winner = cap_l[random.randrange(len(cap_l))]
+                [team.add_player(dpl_men) for team in teams if team.captain == winner]
+                dpl_mens.remove(dpl_men)
+                dpl_cap[dpl_men].remove(winner)
+
+            dpl_cap_list = []
+            for cap_l in dpl_cap.values():
+                dpl_cap_list += cap_l
+
+            view_select = SelectTeatMem(cap_list=dpl_cap_list, player_list=players)
+            [
+                view_select.selectMenu.add_option(
+                    label=name_dict[player.name],
+                    value=player.name,
+                    description="最高XP: " + str(player.max_power()),
+                )
+                for player in players
+            ]
+            await interaction.followup.send(
+                str(i + 1) + "週目2位指名以降", view=view_select
+            )
+
+            try:
+                await client.wait_for("message", check=check_select_mem)
+            except Exception as e:
+                print("select", e)
+
+            # 重複時処理
+            dpl_mens = [
+                k
+                for k, v in collections.Counter(
+                    list(view_select.cap_selected.values())
+                ).items()
+                if v > 1
+            ]
+            dpl_cap.clear()
+            for d_m in dpl_mens:
+                dpl_cap[d_m] = []
+            for k, v in view_select.cap_selected.items():
+                if v in dpl_mens:
+                    dpl_cap[v].append(k)
+
+            # 編成表示処理
+            markdown = "### " + str(i + 1) + "週目ドラフト結果\n"
+            i = 1
+            for team in teams:
+                markdown += "- チーム" + str(i) + "\n"
+                i += 1
+                for player in team.show_member():
+                    markdown += "  - " + name_dict[player.name] + "\n"
+
+        # teams = funcs.dec_team_rand(player_list=players, teams=teams)
 
     # 編成表示処理
     markdown = "# チーム分け\n"
@@ -265,7 +407,8 @@ async def draft(interaction: Interaction) -> None:
         markdown += "- チーム" + str(i) + "\n"
         i += 1
         for player in team.show_member():
-            markdown += "  - " + player + "\n"
+            member = interaction.guild.get_member(int(player))
+            markdown += "  - " + member + "\n"
 
     await interaction.followup.send(content=markdown)
 
