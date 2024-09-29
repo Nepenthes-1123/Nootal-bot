@@ -22,6 +22,7 @@ class Team:
         else:
             self.members = [captain]
 
+        self.captain = captain
         self.LIMIT = 4
 
     def add_player(self, participant: Participant) -> None:
