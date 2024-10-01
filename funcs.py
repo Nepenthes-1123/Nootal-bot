@@ -81,4 +81,3 @@ def dec_team_rand(
             teams_keep = teams_keeping
 
     return teams_keep
-
