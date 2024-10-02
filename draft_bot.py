@@ -142,8 +142,13 @@ class CapButton(Button):
             modal = GetPower("各ルールのXPを入力してください。", self.player_list, True)
             await interaction.response.send_modal(modal)
 
-            while modal.is_finished():
-                pass
+            def check_get_power(a: Select) -> bool:
+                return bool(modal.zones != "")
+
+            try:
+                await client.wait_for("message", check=check_get_power)
+            except Exception as e:
+                print("select", e)
 
             await interaction.followup.edit_message(
                 message_id=interaction.message.id,
@@ -190,8 +195,13 @@ class PrtcButton(Button):
             )
             await interaction.response.send_modal(modal)
 
-            while modal.is_finished():
-                pass
+            def check_get_power(a: Select) -> bool:
+                return bool(modal.zones != "")
+
+            try:
+                await client.wait_for("message", check=check_get_power)
+            except Exception as e:
+                print("select", e)
 
             await interaction.followup.edit_message(
                 message_id=interaction.message.id,
@@ -230,7 +240,9 @@ class SelectTeatMem(View):
             and self.cap_selected[interaction.user.id] == ""
         ):
             self.cap_selected[interaction.user.id] = select.values
-            await interaction.followup.send("チーム数: " + select.values[0])
+            await interaction.followup.send(select.values[0] + "を選択しました。")
+        else:
+            await interaction.followup.send("選択済みです。")
 
 
 @client.tree.command()
