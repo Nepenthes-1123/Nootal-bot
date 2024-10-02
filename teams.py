@@ -41,8 +41,8 @@ class Team:
         # とりあえずルール問わず最大XPの平均を返すよう設定
         return np.average([p.max_power() for p in self.members])
 
-    def show_member(self) -> list:
-        return [p.name for p in self.members]
+    def show_member(self) -> list[Participant]:
+        return [p for p in self.members]
 
 
 if __name__ == "__main__":
