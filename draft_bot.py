@@ -1,6 +1,7 @@
 import collections
 import os
 import random
+import time
 
 import discord
 from discord import ButtonStyle, Client, Intents, Interaction, SelectOption, TextStyle
@@ -30,7 +31,7 @@ class MyClient(Client):
 
         for a in client.get_all_members():
             if not a.bot:
-                name_dict[a.id] = a.nick if a.nick is not None else a.name
+                name_dict[str(a.id)] = a.nick if a.nick is not None else a.name
 
 
 intents = Intents.default()
@@ -48,7 +49,7 @@ class SelectTeatNum(View):
     @discord.ui.select(
         cls=Select,
         placeholder="チーム数を選んでください。",
-        options=[SelectOption(value=int(i), label=int(i)) for i in range(2, 9)],
+        options=[SelectOption(value=int(i), label=int(i)) for i in range(1, 9)],
     )
     async def selectMenu(self, interaction: Interaction, select: Select) -> None:
         select.disabled = True
@@ -90,7 +91,7 @@ class GetPower(Modal):
         ):
             self.player_list.append(
                 Participant(
-                    name=interaction.user.id,
+                    name=str(interaction.user.id),
                     captain=self.cap,
                     zones_pw=float(self.zones.value),
                     tower_pw=float(self.tower.value),
@@ -115,6 +116,7 @@ class CapButton(Button):
     def __init__(
         self,
         player: list[Participant],
+        PLAYER_LIM: int,
         *,
         style: ButtonStyle = ButtonStyle.secondary,
         label: str | None = "主将",
@@ -136,14 +138,17 @@ class CapButton(Button):
             sku_id=sku_id,
         )
         self.player_list = player
+        self.PLAYER_LIM = PLAYER_LIM
 
     async def callback(self, interaction: Interaction) -> None:
-        if interaction.user.id not in [p.name for p in self.player_list]:
+        if str(interaction.user.id) not in [p.name for p in self.player_list]:
             modal = GetPower("各ルールのXPを入力してください。", self.player_list, True)
             await interaction.response.send_modal(modal)
 
             def check_get_power(a: Select) -> bool:
-                return bool(modal.zones != "")
+                return bool(
+                    modal.zones.value != "" or len(self.player_list) >= self.PLAYER_LIM
+                )
 
             try:
                 await client.wait_for("message", check=check_get_power)
@@ -156,16 +161,16 @@ class CapButton(Button):
             )
             await interaction.followup.send("主将を選択しました。", ephemeral=True)
         else:
-            await interaction.response.edit_message(
-                content="現在参加人数: " + str(len(self.player_list)),
+            await interaction.response.send_message(
+                "すでに参加しています。", ephemeral=True
             )
-            await interaction.followup.send("すでに参加しています。", ephemeral=True)
 
 
 class PrtcButton(Button):
     def __init__(
         self,
         player: list[Participant],
+        PLAYER_LIM: int,
         *,
         style: ButtonStyle = ButtonStyle.secondary,
         label: str | None = "参加者",
@@ -187,16 +192,19 @@ class PrtcButton(Button):
             sku_id=sku_id,
         )
         self.player_list = player
+        self.PLAYER_LIM = PLAYER_LIM
 
     async def callback(self, interaction: Interaction) -> None:
-        if interaction.user.id not in [p.name for p in self.player_list]:
+        if str(interaction.user.id) not in [p.name for p in self.player_list]:
             modal = GetPower(
                 "各ルールのXPを入力してください。", self.player_list, False
             )
             await interaction.response.send_modal(modal)
 
             def check_get_power(a: Select) -> bool:
-                return bool(modal.zones != "")
+                return bool(
+                    modal.zones.value != "" or len(self.player_list) >= self.PLAYER_LIM
+                )
 
             try:
                 await client.wait_for("message", check=check_get_power)
@@ -209,10 +217,9 @@ class PrtcButton(Button):
             )
             await interaction.followup.send("参加者を選択しました。", ephemeral=True)
         else:
-            await interaction.response.edit_message(
-                content="現在参加人数: " + str(len(self.player_list)),
+            await interaction.response.send_message(
+                "すでに参加しています。", ephemeral=True
             )
-            await interaction.followup.send("すでに参加しています。", ephemeral=True)
 
 
 class SelectTeatMem(View):
@@ -236,13 +243,15 @@ class SelectTeatMem(View):
     )
     async def selectMenu(self, interaction: Interaction, select: Select) -> None:
         if (
-            interaction.user.id in self.cap_list
-            and self.cap_selected[interaction.user.id] == ""
+            str(interaction.user.id) in self.cap_list
+            and self.cap_selected[str(interaction.user.id)] == ""
         ):
-            self.cap_selected[interaction.user.id] = select.values
-            await interaction.followup.send(select.values[0] + "を選択しました。")
+            self.cap_selected[str(interaction.user.id)] = select.values[0]
+            await interaction.response.send_message(
+                name_dict[select.values[0]] + "を選択しました。", ephemeral=True
+            )
         else:
-            await interaction.followup.send("選択済みです。")
+            await interaction.response.send_message("選択済みです。", ephemeral=True)
 
 
 @client.tree.command()
@@ -266,8 +275,8 @@ async def draft(interaction: Interaction) -> None:
     players: list[Participant] = []
 
     view_button = View()
-    cb = CapButton(players, style=ButtonStyle.primary)
-    pb = PrtcButton(players, style=ButtonStyle.grey)
+    cb = CapButton(players, PLAYER_LIM, style=ButtonStyle.primary)
+    pb = PrtcButton(players, PLAYER_LIM, style=ButtonStyle.grey)
     view_button.add_item(cb)
     view_button.add_item(pb)
     message = await interaction.followup.send(
@@ -282,6 +291,8 @@ async def draft(interaction: Interaction) -> None:
     except Exception as e:
         print("participant_num", e)
 
+    time.sleep(5)
+
     cb.disabled = True
     pb.disabled = True
     view_button = view_button.clear_items()
@@ -295,17 +306,17 @@ async def draft(interaction: Interaction) -> None:
     cap_list: list[Participant] = funcs.dec_cap(player_list=players, TEAM_NUM=TEAM_NUM)
 
     # 主将登録処理（仮）
-    teams = [Team(cap_list[i].name) for i in range(TEAM_NUM)]
+    teams = [Team(cap_list[i]) for i in range(TEAM_NUM)]
 
     # 全参加者表示処理（主将と参加者に分けて表示）
     markdown = "# ドラフト参加者\n- 主将\n"
     for cap in cap_list:
-        member = interaction.guild.get_member(int(cap))
-        markdown += "  - " + member + "\n"
+        member = interaction.guild.get_member(int(cap.name))
+        markdown += "  - " + member.mention + "\n"
     markdown += "- 参加者\n"
     for player in players:
-        member = interaction.guild.get_member(int(player))
-        markdown += "  - " + member + "\n"
+        member = interaction.guild.get_member(int(player.name))
+        markdown += "  - " + member.mention + "\n"
     await interaction.followup.send(content=markdown)
 
     # チーム分け処理
@@ -332,6 +343,7 @@ async def draft(interaction: Interaction) -> None:
             print("select", e)
 
         # 重複時処理
+        print(list(view_select.cap_selected.values()))
         dpl_mens = [
             k
             for k, v in collections.Counter(
@@ -348,10 +360,10 @@ async def draft(interaction: Interaction) -> None:
 
         # 確定プレイヤーをチーム振り分け
         for team in teams:
-            player = view_select.cap_selected[team.captain]
-            players = [p for p in players if p.name != player]
+            player = view_select.cap_selected[team.captain.name]
             if player not in dpl_mens:
-                team.add_player(player)
+                team.add_player([p for p in players if p.name == player][0])
+            players = [p for p in players if p.name != player]
 
         # Todo
         # duplication_menberが空になるまでドラフトに負けている主将にドラフト
@@ -359,10 +371,13 @@ async def draft(interaction: Interaction) -> None:
         while dpl_mens:
             for dpl_men in dpl_mens:
                 cap_l = dpl_cap[dpl_men]
-                winner = cap_l[random.randrange(len(cap_l))]
-                [team.add_player(dpl_men) for team in teams if team.captain == winner]
-                dpl_mens.remove(dpl_men)
-                dpl_cap[dpl_men].remove(winner)
+                if len(cap_l) > 0:
+                    winner = cap_l[random.randrange(len(cap_l))]
+                    for team in teams:
+                        if team.captain == winner:
+                            team.add_player([p for p in players if p.name == player][0])
+                    dpl_mens.remove(dpl_men)
+                    dpl_cap[dpl_men].remove(winner)
 
             dpl_cap_list = []
             for cap_l in dpl_cap.values():
@@ -419,8 +434,8 @@ async def draft(interaction: Interaction) -> None:
         markdown += "- チーム" + str(i) + "\n"
         i += 1
         for player in team.show_member():
-            member = interaction.guild.get_member(int(player))
-            markdown += "  - " + member + "\n"
+            member = interaction.guild.get_member(int(player.name))
+            markdown += "  - " + member.mention + "\n"
 
     await interaction.followup.send(content=markdown)
 
