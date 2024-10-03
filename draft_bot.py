@@ -231,10 +231,10 @@ class SelectTeatMem(View):
         timeout: float | None = 180,
     ):
         super().__init__(timeout=timeout)
-        self.cap_list = [cap.name for cap in cap_list]
+        self.cap_list = [cap for cap in cap_list]
         self.cap_selected: dict[str, str] = {}
         for cap in self.cap_list:
-            self.cap_selected[cap] = ""
+            self.cap_selected[cap.name] = ""
         self.player_list = player_list
 
     @discord.ui.select(
@@ -243,9 +243,10 @@ class SelectTeatMem(View):
     )
     async def selectMenu(self, interaction: Interaction, select: Select) -> None:
         if (
-            str(interaction.user.id) in self.cap_list
+            any([str(interaction.user.id) in cap.name for cap in self.cap_list])
             and self.cap_selected[str(interaction.user.id)] == ""
         ):
+            print(select.values)
             self.cap_selected[str(interaction.user.id)] = select.values[0]
             await interaction.response.send_message(
                 name_dict[select.values[0]] + "を選択しました。", ephemeral=True
@@ -271,7 +272,7 @@ async def draft(interaction: Interaction) -> None:
 
     # 参加者募集処理
     TEAM_NUM = view_select.values
-    PLAYER_LIM = TEAM_NUM * 4
+    PLAYER_LIM = TEAM_NUM * 2
     players: list[Participant] = []
 
     view_button = View()
@@ -321,7 +322,7 @@ async def draft(interaction: Interaction) -> None:
 
     # チーム分け処理
     # ドロップダウンを3回投げて、主将以外の人の入力をIFで無効化する
-    for i in range(3):
+    for i in range(1):
         view_select = SelectTeatMem(cap_list=cap_list, player_list=players)
         [
             view_select.selectMenu.add_option(
@@ -333,6 +334,7 @@ async def draft(interaction: Interaction) -> None:
         ]
 
         await interaction.followup.send(str(i + 1) + "週目指名", view=view_select)
+        print(list(view_select.cap_selected.values()))
 
         def check_select_mem(a: Select) -> bool:
             return all(list(view_select.cap_selected.values()))
@@ -343,7 +345,6 @@ async def draft(interaction: Interaction) -> None:
             print("select", e)
 
         # 重複時処理
-        print(list(view_select.cap_selected.values()))
         dpl_mens = [
             k
             for k, v in collections.Counter(
@@ -363,25 +364,44 @@ async def draft(interaction: Interaction) -> None:
             player = view_select.cap_selected[team.captain.name]
             if player not in dpl_mens:
                 team.add_player([p for p in players if p.name == player][0])
-            players = [p for p in players if p.name != player]
+                players = [p for p in players if p.name != player]
+                await interaction.followup.send(
+                    name_dict[team.captain.name]
+                    + "が"
+                    + name_dict[player]
+                    + "を獲得しました。"
+                )
 
         # Todo
         # duplication_menberが空になるまでドラフトに負けている主将にドラフト
         # を要請するドロップダウンメニューを送り続けるwhile文を書く
         while dpl_mens:
+            print(dpl_mens)
             for dpl_men in dpl_mens:
                 cap_l = dpl_cap[dpl_men]
                 if len(cap_l) > 0:
+                    print("in if")
                     winner = cap_l[random.randrange(len(cap_l))]
                     for team in teams:
-                        if team.captain == winner:
-                            team.add_player([p for p in players if p.name == player][0])
+                        if team.captain.name == winner:
+                            team.add_player(
+                                [p for p in players if p.name == dpl_men][0]
+                            )
+                            players = [p for p in players if p.name != dpl_men]
                     dpl_mens.remove(dpl_men)
                     dpl_cap[dpl_men].remove(winner)
+                    await interaction.followup.send(
+                        name_dict[winner]
+                        + "が"
+                        + name_dict[dpl_men]
+                        + "を獲得しました。"
+                    )
 
-            dpl_cap_list = []
+            dpl_cap_list: list[Participant] = []
             for cap_l in dpl_cap.values():
-                dpl_cap_list += cap_l
+                c = [cap for cap in cap_list if cap.name in cap_l]
+                print(c, cap_l)
+                dpl_cap_list += c
 
             view_select = SelectTeatMem(cap_list=dpl_cap_list, player_list=players)
             [
@@ -416,14 +436,30 @@ async def draft(interaction: Interaction) -> None:
                 if v in dpl_mens:
                     dpl_cap[v].append(k)
 
-            # 編成表示処理
-            markdown = "### " + str(i + 1) + "週目ドラフト結果\n"
-            i = 1
+            # 確定プレイヤーをチーム振り分け
             for team in teams:
-                markdown += "- チーム" + str(i) + "\n"
-                i += 1
-                for player in team.show_member():
-                    markdown += "  - " + name_dict[player.name] + "\n"
+                if team.captain in dpl_cap_list:
+                    player = view_select.cap_selected[team.captain.name]
+                    if player not in dpl_mens:
+                        team.add_player([p for p in players if p.name == player][0])
+                        players = [p for p in players if p.name != player]
+                        await interaction.followup.send(
+                            name_dict[team.captain.name]
+                            + "が"
+                            + name_dict[player]
+                            + "を獲得しました。"
+                        )
+
+        # 編成表示処理
+        markdown = "### " + str(i + 1) + "週目ドラフト結果\n"
+        i = 1
+        for team in teams:
+            markdown += "- チーム" + str(i) + "\n"
+            i += 1
+            for player in team.show_member():
+                markdown += "  - " + name_dict[player.name] + "\n"
+
+        await interaction.followup.send(content=markdown)
 
         # teams = funcs.dec_team_rand(player_list=players, teams=teams)
 
