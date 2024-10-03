@@ -246,7 +246,7 @@ class SelectTeatMem(View):
             any([str(interaction.user.id) in cap.name for cap in self.cap_list])
             and self.cap_selected[str(interaction.user.id)] == ""
         ):
-            print(select.values)
+            # print(select.values)
             self.cap_selected[str(interaction.user.id)] = select.values[0]
             await interaction.response.send_message(
                 name_dict[select.values[0]] + "を選択しました。", ephemeral=True
@@ -335,7 +335,7 @@ async def draft(interaction: Interaction) -> None:
         ]
 
         await interaction.followup.send(str(i + 1) + "週目指名", view=view_select)
-        print(list(view_select.cap_selected.values()))
+        # print(list(view_select.cap_selected.values()))
 
         def check_select_mem(a: Select) -> bool:
             return all(list(view_select.cap_selected.values()))
@@ -377,11 +377,11 @@ async def draft(interaction: Interaction) -> None:
         # duplication_menberが空になるまでドラフトに負けている主将にドラフト
         # を要請するドロップダウンメニューを送り続けるwhile文を書く
         while dpl_mens:
-            print(dpl_mens)
+            # print(dpl_mens)
             for dpl_men in dpl_mens:
                 cap_l = dpl_cap[dpl_men]
                 if len(cap_l) > 0:
-                    print("in if")
+                    # print("in if")
                     winner = cap_l[random.randrange(len(cap_l))]
                     for team in teams:
                         if team.captain.name == winner:
@@ -401,7 +401,7 @@ async def draft(interaction: Interaction) -> None:
             dpl_cap_list: list[Participant] = []
             for cap_l in dpl_cap.values():
                 c = [cap for cap in cap_list if cap.name in cap_l]
-                print(c, cap_l)
+                # print(c, cap_l)
                 dpl_cap_list += c
 
             view_select = SelectTeatMem(cap_list=dpl_cap_list, player_list=players)
