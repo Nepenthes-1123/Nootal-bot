@@ -15,41 +15,50 @@ def dec_cap(player_list: list[Participant], TEAM_NUM: int) -> list[Participant]:
         TEAM_NUM (int): チーム数
 
     Returns:
-        list[Participant]: 主将を除いた参加者リスト
+        #list[Participant]: 主将を除いた参加者リスト
         list[captains]: 主将リスト
     """
 
     cap_list: list[Participant] = []
     cap_num: int = 0
-    player_list_copy = copy.deepcopy(player_list)
+    player_list_copy: list[Participant] = copy.deepcopy(player_list)
+    new_player_list: list[Participant] = []
 
     # 主将の人数を数え、cap_listに入れる
-    for i in range(len(player_list_copy)):
-        if player_list[i].captain:
-            p = player_list_copy[i]
+    for p in player_list_copy:
+        if p.captain:
             cap_list.append(p)
             cap_num += 1
-
-    for cap in cap_list:
-        player_list_copy.remove(cap)
+        else:
+            new_player_list.append(p)
+    player_list_copy = copy.deepcopy(new_player_list)
 
     # 主将が足りない場合に補充
-    while cap_num < TEAM_NUM:
-        random_cap: int = random.randint(1, len(player_list_copy))
-        p = player_list_copy[random_cap]
-        p.captain = True
-        cap_list.append(p)
-        cap_num += 1
+    if cap_num < TEAM_NUM:
+        new_player_list = []
+        random_cap_num: list[int] = random.sample(
+            range(len(player_list_copy)), k=(TEAM_NUM - cap_num)
+        )
 
-    for cap in cap_list:
-        if cap in player_list_copy:
-            player_list_copy.remove(cap)
+        print(random_cap_num)
+        for i in range(len(player_list_copy)):
+            p: Participant = player_list_copy[i]
+            if i in random_cap_num:
+                print(p.name)
+                p.captain = True
+                cap_list.append(p)
+            else:
+                new_player_list.append(p)
+        player_list_copy = copy.deepcopy(new_player_list)
 
-    player_list = player_list_copy
+    # 主将が過剰な場合(先着順)
+    if cap_num > TEAM_NUM:
+        player_list_copy += cap_list[TEAM_NUM:]
+        cap_list = cap_list[:TEAM_NUM]
 
     # 主将を除いたplayer_listも返せます
-    # return (player_list_copy, cap_list)
-    return cap_list
+    return (player_list_copy, cap_list)
+    # return cap_list
 
 
 def dec_team_rand(
