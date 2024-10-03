@@ -272,7 +272,7 @@ async def draft(interaction: Interaction) -> None:
 
     # 参加者募集処理
     TEAM_NUM = view_select.values
-    PLAYER_LIM = TEAM_NUM * 2
+    PLAYER_LIM = TEAM_NUM * 4
     players: list[Participant] = []
 
     view_button = View()
@@ -322,7 +322,7 @@ async def draft(interaction: Interaction) -> None:
 
     # チーム分け処理
     # ドロップダウンを3回投げて、主将以外の人の入力をIFで無効化する
-    for i in range(1):
+    for i in range(3):
         view_select = SelectTeatMem(cap_list=cap_list, player_list=players)
         [
             view_select.selectMenu.add_option(
