@@ -304,7 +304,8 @@ async def draft(interaction: Interaction) -> None:
     )
 
     # 主将決定処理
-    cap_list: list[Participant] = funcs.dec_cap(player_list=players, TEAM_NUM=TEAM_NUM)
+    cap_list: list[Participant]
+    players, cap_list = funcs.dec_cap(player_list=players, TEAM_NUM=TEAM_NUM)
 
     # 主将登録処理（仮）
     teams = [Team(cap_list[i]) for i in range(TEAM_NUM)]
