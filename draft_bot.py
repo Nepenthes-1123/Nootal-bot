@@ -18,6 +18,20 @@ load_dotenv()
 name_dict: dict[str, str] = {}
 
 
+def duplication_cap(cap_selected: dict) -> tuple[list, dict[str, list[str]]]:
+    dpl_mens = [
+        k for k, v in collections.Counter(list(cap_selected.values())).items() if v > 1
+    ]
+    dpl_cap: dict[str, list[str]] = {}
+    for d_m in dpl_mens:
+        dpl_cap[d_m] = []
+    for k, v in cap_selected.items():
+        if v in dpl_mens:
+            dpl_cap[v].append(k)
+
+    return dpl_mens, dpl_cap
+
+
 class MyClient(Client):
     def __init__(self, intents: Intents) -> None:
         super().__init__(intents=intents)
@@ -346,19 +360,7 @@ async def draft(interaction: Interaction) -> None:
             print("select", e)
 
         # 重複時処理
-        dpl_mens = [
-            k
-            for k, v in collections.Counter(
-                list(view_select.cap_selected.values())
-            ).items()
-            if v > 1
-        ]
-        dpl_cap: dict[str, list[str]] = {}
-        for d_m in dpl_mens:
-            dpl_cap[d_m] = []
-        for k, v in view_select.cap_selected.items():
-            if v in dpl_mens:
-                dpl_cap[v].append(k)
+        dpl_mens, dpl_cap = duplication_cap(view_select.cap_selected)
 
         # 確定プレイヤーをチーム振り分け
         for team in teams:
@@ -423,19 +425,7 @@ async def draft(interaction: Interaction) -> None:
                 print("select", e)
 
             # 重複時処理
-            dpl_mens = [
-                k
-                for k, v in collections.Counter(
-                    list(view_select.cap_selected.values())
-                ).items()
-                if v > 1
-            ]
-            dpl_cap.clear()
-            for d_m in dpl_mens:
-                dpl_cap[d_m] = []
-            for k, v in view_select.cap_selected.items():
-                if v in dpl_mens:
-                    dpl_cap[v].append(k)
+            dpl_mens, dpl_cap = duplication_cap(view_select.cap_selected)
 
             # 確定プレイヤーをチーム振り分け
             for team in teams:
